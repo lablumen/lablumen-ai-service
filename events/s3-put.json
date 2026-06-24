@@ -1,0 +1,13 @@
+{
+  "Records": [
+    {
+      "eventSource": "aws:s3",
+      "awsRegion": "us-east-1",
+      "eventName": "ObjectCreated:Put",
+      "s3": {
+        "bucket": { "name": "lablumen-reports-local" },
+        "object": { "key": "reports/sample-report.pdf" }
+      }
+    }
+  ]
+}

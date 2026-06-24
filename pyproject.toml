@@ -1,0 +1,16 @@
+[project]
+name = "ai-processing-pipeline"
+version = "0.1.0"
+description = "S3-triggered Lambda: synchronous Textract OCR -> Bedrock Nova summary + Titan embeddings -> pgvector."
+requires-python = ">=3.12"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

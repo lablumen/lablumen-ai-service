@@ -1,0 +1,29 @@
+name: ci
+
+# AI service is a Lambda (SAM), not a k8s workload — so no image build/push or GitOps write-back here.
+# CI = lint + unit tests. Deployment is driven by Terraform (var.enable_ai_lambda) consuming the built
+# zip; wire a package/publish step here once that path is turned on.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install
+        run: |
+          pip install -r requirements.txt
+          pip install ruff pytest
+      - name: Ruff
+        run: ruff check src
+      - name: Pytest
+        run: python -m pytest -q

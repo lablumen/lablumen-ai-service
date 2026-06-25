@@ -29,11 +29,11 @@ def _make_textract_client():
 
 
 _textract = _make_textract_client()
-_s3 = boto3.client("s3")
 
 
 def extract_text(bucket: str, key: str) -> str:
-    pdf_bytes = _s3.get_object(Bucket=bucket, Key=key)["Body"].read()
-    resp = _textract.detect_document_text(Document={"Bytes": pdf_bytes})
+    resp = _textract.detect_document_text(
+        Document={"S3Object": {"Bucket": bucket, "Name": key}}
+    )
     lines = [b["Text"] for b in resp.get("Blocks", []) if b.get("BlockType") == "LINE"]
     return "\n\n".join(lines)

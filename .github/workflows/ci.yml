@@ -1,8 +1,7 @@
 name: ci
 
-# AI service is a Lambda (SAM), not a k8s workload — so no image build/push or GitOps write-back here.
-# CI = lint + unit tests. Deployment is driven by Terraform (var.enable_ai_lambda) consuming the built
-# zip; wire a package/publish step here once that path is turned on.
+# AI service is a Lambda (SAM). CI = lint + unit tests on PR.
+# On merge to main: sam build + sam deploy (SAM-native, no Terraform apply needed per deploy).
 on:
   pull_request:
   push:
@@ -10,6 +9,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write   # required for OIDC assume-role in the deploy job
 
 jobs:
   test:
@@ -27,3 +27,53 @@ jobs:
         run: ruff check src
       - name: Pytest
         run: python -m pytest -q
+
+  deploy:
+    # Only deploy on push to main, never on PRs.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install SAM CLI
+        run: pip install aws-sam-cli
+
+      - name: Assume ai-lambda-deploy role (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/lablumen-ai-lambda-deploy
+          aws-region: us-east-1
+
+      - name: Read SAM deploy params from SSM
+        id: ssm
+        run: |
+          get() { aws ssm get-parameter --name "/lablumen/config/$1" --query Parameter.Value --output text; }
+          echo "exec_role_arn=$(get lambda-exec-role-arn)"       >> $GITHUB_OUTPUT
+          echo "subnet_ids=$(get lambda-subnet-ids)"             >> $GITHUB_OUTPUT
+          echo "sg_id=$(get lambda-security-group-id)"           >> $GITHUB_OUTPUT
+          echo "sam_bucket=$(get sam-artifacts-bucket)"          >> $GITHUB_OUTPUT
+          echo "reports_bucket=$(get reports-bucket)"            >> $GITHUB_OUTPUT
+
+      - name: SAM build
+        run: sam build --use-container
+
+      - name: SAM deploy
+        run: |
+          sam deploy \
+            --stack-name lablumen-ai \
+            --s3-bucket "${{ steps.ssm.outputs.sam_bucket }}" \
+            --region us-east-1 \
+            --capabilities CAPABILITY_IAM \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              "ReportsBucketName=${{ steps.ssm.outputs.reports_bucket }}" \
+              "ExecutionRoleArn=${{ steps.ssm.outputs.exec_role_arn }}" \
+              "SubnetIds=${{ steps.ssm.outputs.subnet_ids }}" \
+              "SecurityGroupId=${{ steps.ssm.outputs.sg_id }}"
+

@@ -2,15 +2,26 @@ AWSTemplateFormatVersion: "2010-09-09"
 Transform: AWS::Serverless-2016-10-31
 Description: LabLumen AI processing pipeline (S3 -> Textract -> Bedrock -> pgvector)
 
-# Self-contained path for `sam build` / `sam deploy`. In the Terraform-managed deployment, the
-# reports bucket and the S3 -> Lambda notification are provisioned by terraform/modules/storage
-# instead; this template then only needs the function + VpcConfig to reach RDS.
+# Deployment model: Terraform owns the S3 bucket, IAM execution role, Lambda security group,
+# and VPC. SAM owns the Lambda function and its CloudWatch log group.
+# DATABASE_URL is NOT a parameter here — db.py reads it from Secrets Manager at runtime.
 
 Parameters:
-  DatabaseUrl:
+  ReportsBucketName:
     Type: String
-    NoEcho: true
-    Description: libpq/SQLAlchemy URL for the RDS Postgres instance.
+    Description: Name of the Terraform-managed reports S3 bucket (trigger source).
+
+  ExecutionRoleArn:
+    Type: String
+    Description: ARN of the Terraform-managed Lambda execution role (lablumen-ai-lambda-exec).
+
+  SubnetIds:
+    Type: String
+    Description: Comma-separated list of private subnet IDs where the Lambda will run (must reach RDS).
+
+  SecurityGroupId:
+    Type: String
+    Description: ID of the Lambda security group (egress 5432 to RDS, 443 to AWS APIs).
 
 Globals:
   Function:
@@ -19,45 +30,37 @@ Globals:
     MemorySize: 512
 
 Resources:
-  ReportsBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-
   AiProcessingFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: .
       Handler: src.handler.lambda_handler
+      # Execution role is Terraform-managed (Textract + Bedrock + S3 + SM + VPC ENI perms).
+      Role: !Ref ExecutionRoleArn
+      VpcConfig:
+        SubnetIds: !Split [",", !Ref SubnetIds]
+        SecurityGroupIds:
+          - !Ref SecurityGroupId
       Environment:
         Variables:
-          DATABASE_URL: !Ref DatabaseUrl
+          # Secret ID that db.py reads at cold start from Secrets Manager.
+          DATABASE_SECRET_ID: lablumen/app/database-url
           BEDROCK_EMBED_MODEL_ID: amazon.titan-embed-text-v1
+          # Nova Lite v1 is the ONLY on-demand text model permitted under org SCP p-rn6vr8ok.
           BEDROCK_TEXT_MODEL_ID: amazon.nova-lite-v1:0
-      # VpcConfig:  # required to reach RDS in private subnets (wired from Terraform outputs)
-      #   SubnetIds: [...]
-      #   SecurityGroupIds: [...]
-      Policies:
-        - TextractPolicy: {}
-        - S3ReadPolicy:
-            BucketName: !Ref ReportsBucket
-        - Statement:
-            - Effect: Allow
-              Action: ["bedrock:InvokeModel"]
-              Resource: "*"
       Events:
         ReportUploaded:
           Type: S3
           Properties:
-            Bucket: !Ref ReportsBucket
+            Bucket: !Ref ReportsBucketName
             Events: s3:ObjectCreated:*
+            # Bucket is managed by Terraform — SAM wires the notification only.
 
 Outputs:
   FunctionArn:
+    Description: ARN of the deployed AI processing Lambda.
     Value: !GetAtt AiProcessingFunction.Arn
-  ReportsBucketName:
-    Value: !Ref ReportsBucket
+  FunctionName:
+    Description: Name of the deployed AI processing Lambda.
+    Value: !Ref AiProcessingFunction
+

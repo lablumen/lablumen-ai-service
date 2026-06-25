@@ -23,6 +23,10 @@ Parameters:
     Type: String
     Description: ID of the Lambda security group (egress 5432 to RDS, 443 to AWS APIs).
 
+  BedrockCrossAccountRoleArn:
+    Type: String
+    Description: ARN of the cross-account IAM role (in the Bedrock-enabled account) assumed at cold start to create the Bedrock client.
+
 Globals:
   Function:
     Runtime: python3.12
@@ -48,6 +52,7 @@ Resources:
           BEDROCK_EMBED_MODEL_ID: amazon.titan-embed-text-v1
           # Nova Lite v1 is the ONLY on-demand text model permitted under org SCP p-rn6vr8ok.
           BEDROCK_TEXT_MODEL_ID: amazon.nova-lite-v1:0
+          BEDROCK_CROSS_ACCOUNT_ROLE_ARN: !Ref BedrockCrossAccountRoleArn
       Events:
         ReportUploaded:
           Type: EventBridgeRule

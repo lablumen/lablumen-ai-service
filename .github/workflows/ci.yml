@@ -53,11 +53,12 @@ jobs:
         id: ssm
         run: |
           get() { aws ssm get-parameter --name "/lablumen/config/$1" --query Parameter.Value --output text; }
-          echo "exec_role_arn=$(get lambda-exec-role-arn)"       >> $GITHUB_OUTPUT
-          echo "subnet_ids=$(get lambda-subnet-ids)"             >> $GITHUB_OUTPUT
-          echo "sg_id=$(get lambda-security-group-id)"           >> $GITHUB_OUTPUT
-          echo "sam_bucket=$(get sam-artifacts-bucket)"          >> $GITHUB_OUTPUT
-          echo "reports_bucket=$(get reports-bucket)"            >> $GITHUB_OUTPUT
+          echo "exec_role_arn=$(get lambda-exec-role-arn)"                   >> $GITHUB_OUTPUT
+          echo "subnet_ids=$(get lambda-subnet-ids)"                         >> $GITHUB_OUTPUT
+          echo "sg_id=$(get lambda-security-group-id)"                       >> $GITHUB_OUTPUT
+          echo "sam_bucket=$(get sam-artifacts-bucket)"                      >> $GITHUB_OUTPUT
+          echo "reports_bucket=$(get reports-bucket)"                        >> $GITHUB_OUTPUT
+          echo "bedrock_cross_account_role_arn=$(get bedrock-cross-account-role-arn)" >> $GITHUB_OUTPUT
 
       - name: SAM build
         run: sam build --use-container
@@ -75,5 +76,6 @@ jobs:
               "ReportsBucketName=${{ steps.ssm.outputs.reports_bucket }}" \
               "ExecutionRoleArn=${{ steps.ssm.outputs.exec_role_arn }}" \
               "SubnetIds=${{ steps.ssm.outputs.subnet_ids }}" \
-              "SecurityGroupId=${{ steps.ssm.outputs.sg_id }}"
+              "SecurityGroupId=${{ steps.ssm.outputs.sg_id }}" \
+              "BedrockCrossAccountRoleArn=${{ steps.ssm.outputs.bedrock_cross_account_role_arn }}"
 

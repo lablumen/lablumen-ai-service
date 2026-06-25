@@ -30,8 +30,15 @@ def _process_object(bucket: str, key: str) -> None:
 
 
 def lambda_handler(event: dict, context: object) -> dict:
-    for record in event.get("Records", []):
-        bucket = record["s3"]["bucket"]["name"]
-        key = unquote_plus(record["s3"]["object"]["key"])
+    # Support both direct S3 event notifications and EventBridge S3 notifications
+    if "Records" in event:
+        for record in event["Records"]:
+            bucket = record["s3"]["bucket"]["name"]
+            key = unquote_plus(record["s3"]["object"]["key"])
+            _process_object(bucket, key)
+    elif "detail" in event:
+        bucket = event["detail"]["bucket"]["name"]
+        key = unquote_plus(event["detail"]["object"]["key"])
         _process_object(bucket, key)
     return {"status": "ok"}
+

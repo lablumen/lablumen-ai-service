@@ -50,11 +50,17 @@ Resources:
           BEDROCK_TEXT_MODEL_ID: amazon.nova-lite-v1:0
       Events:
         ReportUploaded:
-          Type: S3
+          Type: EventBridgeRule
           Properties:
-            Bucket: !Ref ReportsBucketName
-            Events: s3:ObjectCreated:*
-            # Bucket is managed by Terraform — SAM wires the notification only.
+            Pattern:
+              source:
+                - aws.s3
+              detail-type:
+                - Object Created
+              detail:
+                bucket:
+                  name:
+                    - !Ref ReportsBucketName
 
 Outputs:
   FunctionArn:

@@ -1,2 +1,3 @@
 # boto3 is provided by the Lambda Python runtime; only the DB driver is bundled.
 psycopg[binary]==3.2.*
+pypdf==4.*

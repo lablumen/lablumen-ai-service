@@ -5,6 +5,7 @@ import os
 
 import boto3
 
+
 def _make_bedrock_client():
     role_arn = os.environ.get("BEDROCK_CROSS_ACCOUNT_ROLE_ARN")
     if not role_arn:
